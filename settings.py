@@ -1,0 +1,1 @@
+settings_dict = {'output_path':'C:/git repos/applications/sql/images_store','move':1}

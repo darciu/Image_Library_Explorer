@@ -6,9 +6,13 @@ import sys
 import os
 from PIL import Image
 from class_read_tags import *
+from class_settings_window import *
 import time
 import datetime
-from shutil import copyfile
+import shutil
+from settings import *
+
+
 
 class mainWindow(QMainWindow):
     def __init__(self):
@@ -18,16 +22,34 @@ class mainWindow(QMainWindow):
         self.setWindowTitle('Image Management Tool')
 
         #==========Main Menu====================
-        self.newGame = QAction('&New Game', self)
+
+        self.settings = QAction('&Settings', self)
+        self.backup = QAction('Make Backup', self)
+        self.help = QAction('Help', self)
+        self.quit = QAction('Quit', self)
+
+        self.settings.setStatusTip('Basic Settings...')
+        self.backup.setStatusTip('Make backup of the database...')
+        self.help.setStatusTip('Help...')
+        self.quit.setStatusTip('Quits...')
+
         self.statusBar()
         self.mainMenu = self.menuBar()
-        optionsMenu = self.mainMenu.addMenu('&Options')
-        optionsMenu.addAction(self.newGame)
+        self.optionsMenu = self.mainMenu.addMenu('&Options')
+
+        self.optionsMenu.addAction(self.settings)
+        self.optionsMenu.addAction(self.backup)
+        self.optionsMenu.addAction(self.help)
+        self.optionsMenu.addAction(self.quit)
+
+        self.settings.triggered.connect(self.settings_opt)
 
         self.table_widget = MyTableWidget(self)
         self.setCentralWidget(self.table_widget)
 
-
+    def settings_opt(self):
+        self.dialog = SettingsWindow()
+        self.dialog.show()
 
 
 class MyTableWidget(QWidget):
@@ -50,7 +72,7 @@ class MyTableWidget(QWidget):
         conn = lite.connect('database.db')
         cur = conn.cursor()
 
-        #===============FIRST TAB (Add new file)=================================
+        #===============FIRST TAB (Add New Image)=================================
 
 
         self.tab1_browse_button = QPushButton("Browse Folder")
@@ -65,10 +87,15 @@ class MyTableWidget(QWidget):
 
 
         self.tab1_display_image = QLabel()
-        self.tab1_text1 = QLabel('Image name:')
-        self.tab1_display_name = QLineEdit()
+        self.tab1_text1 = QLabel('Image old name:')
+        self.tab1_display_old_name = QLineEdit()
+        self.tab1_display_old_name.setReadOnly(True)
+
+        self.tab1_text4 = QLabel('Image new name:')
+        self.tab1_display_new_name = QLineEdit()
         self.tab1_text2 = QLabel('Image path:')
         self.tab1_display_path = QLineEdit()
+        self.tab1_display_path.setReadOnly(True)
         self.tab1_text3 = QLabel('Provide tags (if any field filled, image already have):')
         self.tab1_tag1 = QLineEdit()
         self.tab1_tag2 = QLineEdit()
@@ -93,14 +120,16 @@ class MyTableWidget(QWidget):
 
         self.tab1_right_grid.addWidget(self.tab1_text1,0,0)
         self.tab1_right_grid.addWidget(self.tab1_store_this_image, 0, 1)
-        self.tab1_right_grid.addWidget(self.tab1_display_name, 1, 0)
-        self.tab1_right_grid.addWidget(self.tab1_text2, 3, 0)
-        self.tab1_right_grid.addWidget(self.tab1_display_path, 4, 0)
-        self.tab1_right_grid.addWidget(self.tab1_text3,5 ,0)
-        self.tab1_right_grid.addWidget(self.tab1_tag1, 6, 0)
-        self.tab1_right_grid.addWidget(self.tab1_tag2, 6, 1)
-        self.tab1_right_grid.addWidget(self.tab1_tag3, 7, 0)
-        self.tab1_right_grid.addWidget(self.tab1_tag4, 7, 1)
+        self.tab1_right_grid.addWidget(self.tab1_display_old_name, 1, 0)
+        self.tab1_right_grid.addWidget(self.tab1_text4,2,0)
+        self.tab1_right_grid.addWidget(self.tab1_display_new_name,3,0)
+        self.tab1_right_grid.addWidget(self.tab1_text2, 4, 0)
+        self.tab1_right_grid.addWidget(self.tab1_display_path, 5, 0)
+        self.tab1_right_grid.addWidget(self.tab1_text3,6 ,0)
+        self.tab1_right_grid.addWidget(self.tab1_tag1, 7, 0)
+        self.tab1_right_grid.addWidget(self.tab1_tag2, 7, 1)
+        self.tab1_right_grid.addWidget(self.tab1_tag3, 8, 0)
+        self.tab1_right_grid.addWidget(self.tab1_tag4, 8, 1)
 
         self.tab1_main_grid.addLayout(self.tab1_left_grid,0,0)
         self.tab1_main_grid.addLayout(self.tab1_right_grid,0,1)
@@ -120,13 +149,13 @@ class MyTableWidget(QWidget):
         if self.tab1_display_image.pixmap() == None:
             return 0
         #File_Name TEXT, File_Path TEXT, Previous_Path TEXT,Tag1 TEXT,Tag2 TEXT, Tag3 TEXT, Tag4 TEXT, Date_added TEXT,
-        file_name = self.tab1_display_name.text()[:-4]
+        file_name = self.tab1_display_new_name.text()[:-4]
         date = str(datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'))
         cur.execute("INSERT INTO images (File_Name, Previous_Path,Tag1,Tag2,Tag3,Tag4,Date_added) VALUES (?,?,?,?,?,?,?)",
                     (file_name,self.tab1_display_path.text(),self.tab1_tag1.text(),
                      self.tab1_tag2.text(),self.tab1_tag3.text(),self.tab1_tag4.text(),date,))
         conn.commit()
-        copyfile(os.path.join(self.tab1_display_path.text(), self.tab1_display_name.text()),os.path.join('images',self.tab1_display_name.text()))
+        shutil.move(os.path.join(self.tab1_display_path.text(), self.tab1_display_old_name.text()),os.path.join('images',self.tab1_display_new_name.text()))
 
     def click_browse_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, 'Select folder with images...')
@@ -145,9 +174,10 @@ class MyTableWidget(QWidget):
 
         self.tab1_display_image.setPixmap(self.pixmap)
         self.tab1_display_path.setText(folder_path)
-        self.tab1_display_name.setText(self.images_list[0])
+        self.tab1_display_old_name.setText(self.images_list[0])
+        self.tab1_display_new_name.setText(self.images_list[0])
         #update tags
-        tags = ReadTags(str(os.path.join(folder_path, self.tab1_display_name.text())))
+        tags = ReadTags(str(os.path.join(folder_path, self.tab1_display_old_name.text())))
         tab1_tag_list = [self.tab1_tag1,self.tab1_tag2,self.tab1_tag3,self.tab1_tag4]
         for elem in tab1_tag_list:
             elem.setText('')
@@ -156,9 +186,9 @@ class MyTableWidget(QWidget):
 
 
     def click_next(self):
-        if self.tab1_display_name.text() == '' or self.tab1_display_name.text() not in self.images_list:
+        if self.tab1_display_old_name.text() == '' or self.tab1_display_old_name.text() not in self.images_list:
             return 0
-        index = self.images_list.index(self.tab1_display_name.text())
+        index = self.images_list.index(self.tab1_display_old_name.text())
         if index + 1 == len(self.images_list):
             index = 0
         else:
@@ -167,9 +197,10 @@ class MyTableWidget(QWidget):
         self.pixmap = QPixmap(self.tab1_display_path.text() + '/' + self.images_list[index])
         self.pixmap = self.pixmap.scaledToWidth(360)
         self.tab1_display_image.setPixmap(self.pixmap)
-        self.tab1_display_name.setText(self.images_list[index])
+        self.tab1_display_old_name.setText(self.images_list[index])
+        self.tab1_display_new_name.setText(self.images_list[index])
         #tags
-        tags = ReadTags(str(os.path.join(self.tab1_display_path.text(), self.tab1_display_name.text())))
+        tags = ReadTags(str(os.path.join(self.tab1_display_path.text(), self.tab1_display_old_name.text())))
         tab1_tag_list = [self.tab1_tag1, self.tab1_tag2, self.tab1_tag3, self.tab1_tag4]
         for elem in tab1_tag_list:
             elem.setText('')
@@ -177,9 +208,9 @@ class MyTableWidget(QWidget):
             tab1_tag_list[counter].setText(tag)
 
     def click_previous(self):
-        if self.tab1_display_name.text() == '' or self.tab1_display_name.text() not in self.images_list:
+        if self.tab1_display_old_name.text() == '' or self.tab1_display_old_name.text() not in self.images_list:
             return 0
-        index = self.images_list.index(self.tab1_display_name.text())
+        index = self.images_list.index(self.tab1_display_old_name.text())
         if index - 1 < 0:
             index = len(self.images_list) - 1
         else:
@@ -188,9 +219,10 @@ class MyTableWidget(QWidget):
         self.pixmap = QPixmap(self.tab1_display_path.text() + '/' + self.images_list[index])
         self.pixmap = self.pixmap.scaledToWidth(360)
         self.tab1_display_image.setPixmap(self.pixmap)
-        self.tab1_display_name.setText(self.images_list[index])
+        self.tab1_display_old_name.setText(self.images_list[index])
+        self.tab1_display_new_name.setText(self.images_list[index])
         # tags
-        tags = ReadTags(str(os.path.join(self.tab1_display_path.text(), self.tab1_display_name.text())))
+        tags = ReadTags(str(os.path.join(self.tab1_display_path.text(), self.tab1_display_old_name.text())))
         tab1_tag_list = [self.tab1_tag1, self.tab1_tag2, self.tab1_tag3, self.tab1_tag4]
         for elem in tab1_tag_list:
             elem.setText('')
